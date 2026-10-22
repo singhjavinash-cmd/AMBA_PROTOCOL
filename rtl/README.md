@@ -75,3 +75,52 @@ These results describe the tests currently exercised by the testbench; they do n
 1. Run the simulation command.
 2. Open `multislave.vcd` in Surfer Waveform Viewer in VS Code.
 3. Inspect AXI handshakes, APB setup/access phases, peripheral signals, and response status.
+
+## Architecture Diagram
+
+```text
+             AXI4-Lite Master
+                    |
+          +---------------------+
+          | AXI4-Lite to APB    |
+          | Bridge (FSM)        |
+          +---------------------+
+                    |
+             APB Master Interface
+                    |
+          +---------------------+
+          | APB Address Decoder |
+          +---------------------+
+              |             |
+       0x0000_0XXX     0x0000_1XXX
+              |             |
+       +-------------+ +-------------+
+       | APB Memory  | | APB Timer   |
+       | Slave       | | Peripheral  |
+       +-------------+ +-------------+
+              |
+       Unmapped addresses
+       return SLVERR responses
+```
+
+## Verification Summary
+
+The current simulation regression reports the following results:
+
+| Test | Expected result | Status |
+|---|---|---|
+| Memory write | AXI OKAY response | PASS |
+| Timer enable write | AXI OKAY response | PASS |
+| Memory read | `0xAAAA_BBBB` | PASS |
+| Timer counter read | Counter value returned | PASS |
+| Unmapped write | `BRESP = SLVERR` | PASS |
+| Unmapped read | `RRESP = SLVERR` | PASS |
+
+**Simulation toolchain:** Icarus Verilog and Surfer Waveform Viewer.
+
+**Run all regression tests:**
+
+```bash
+chmod +x run_all.sh
+./run_all.sh
+```
