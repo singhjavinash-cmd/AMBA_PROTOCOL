@@ -1,0 +1,10 @@
+.DS_Store
+.vscode/
+build/
+*.vcd
+*.fst
+*.ghw
+sim_apb
+sim_apb_self
+sim_bridge
+sim_multislave
