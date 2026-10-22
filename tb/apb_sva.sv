@@ -27,7 +27,7 @@ module apb_sva (
             saved_write      <= 1'b0;
         end else begin
 
-            // Rule 1: Setup phase must be followed by Access.
+            // Rule 1: Setup must transition to Access
             if (setup_seen && !(psel && penable)) begin
                 $error(
                     "[APB CHECK] Setup was not followed by Access at %0t",
@@ -35,27 +35,33 @@ module apb_sva (
                 );
             end
 
-            // Rule 2: During consecutive wait cycles,
-            // the APB transfer controls must remain stable.
-            // Do not flag the cycle in which the transfer completes.
-            if (access_wait_seen && psel && penable && !pready) begin
-                if ((paddr !== saved_addr) ||
-                    (pwrite !== saved_write) ||
-                    (saved_write && (pwdata !== saved_wdata))) begin
+            // Rule 2: Transfer controls must remain stable
+            // while the previous Access cycle was waiting.
+            if (access_wait_seen) begin
+                if (!(psel && penable)) begin
                     $error(
-                        "[APB CHECK] Address/control/data changed during wait state at %0t",
+                        "[APB CHECK] Access ended before PREADY at %0t",
+                        $time
+                    );
+                end else if (
+                    (paddr !== saved_addr) ||
+                    (pwrite !== saved_write) ||
+                    (saved_write && (pwdata !== saved_wdata))
+                ) begin
+                    $error(
+                        "[APB CHECK] Transfer signals changed during wait state at %0t",
                         $time
                     );
                 end
             end
 
-            // Record the current Setup phase.
+            // Remember whether the current cycle is Setup
             setup_seen <= psel && !penable;
 
-            // Record the current Access wait state.
+            // Remember whether the current cycle is waiting
             access_wait_seen <= psel && penable && !pready;
 
-            // Save the transfer controls during Access.
+            // Save transfer signals during Access
             if (psel && penable) begin
                 saved_addr  <= paddr;
                 saved_write <= pwrite;

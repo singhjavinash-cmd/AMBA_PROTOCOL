@@ -8,3 +8,4 @@ sim_apb
 sim_apb_self
 sim_bridge
 sim_multislave
+sim_apb_sva
