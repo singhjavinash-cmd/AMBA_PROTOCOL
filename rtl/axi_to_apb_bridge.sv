@@ -15,6 +15,7 @@ module axi_to_apb_bridge #(
 
     // AXI4-Lite Write Data Channel
     input  logic [DATA_WIDTH-1:0] s_axi_wdata,
+    input  logic [DATA_WIDTH/8-1:0] s_axi_wstrb,
     input  logic                  s_axi_wvalid,
     output logic                  s_axi_wready,
 
@@ -34,12 +35,13 @@ module axi_to_apb_bridge #(
     output logic                  s_axi_rvalid,
     input  logic                  s_axi_rready,
 
-    // APB Master Interface
+    // APB4 Master Interface
     output logic [ADDR_WIDTH-1:0] m_apb_paddr,
     output logic                  m_apb_psel,
     output logic                  m_apb_penable,
     output logic                  m_apb_pwrite,
     output logic [DATA_WIDTH-1:0] m_apb_pwdata,
+    output logic [DATA_WIDTH/8-1:0] m_apb_pstrb,
     input  logic [DATA_WIDTH-1:0] m_apb_prdata,
     input  logic                  m_apb_pready,
     input  logic                  m_apb_pslverr
@@ -57,6 +59,7 @@ module axi_to_apb_bridge #(
 
     logic [ADDR_WIDTH-1:0] addr_reg;
     logic [DATA_WIDTH-1:0] data_reg;
+    logic [DATA_WIDTH/8-1:0] strb_reg;
 
     logic is_write;
     logic write_error_reg;
@@ -72,15 +75,14 @@ module axi_to_apb_bridge #(
 
     logic [ADDR_WIDTH-1:0] awaddr_reg;
     logic [DATA_WIDTH-1:0] wdata_reg;
+    logic [DATA_WIDTH/8-1:0] wstrb_reg;
 
-    // AXI ready signals
     assign s_axi_awready =
         resetn && (state == IDLE) && !aw_pending;
 
     assign s_axi_wready =
         resetn && (state == IDLE) && !w_pending;
 
-    // Give priority to an already-started write transaction.
     assign s_axi_arready =
         resetn && (state == IDLE) &&
         !aw_pending && !w_pending &&
@@ -94,7 +96,6 @@ module axi_to_apb_bridge #(
         (aw_pending || aw_hs) &&
         (w_pending  || w_hs);
 
-    // Independent AXI response registers
     assign s_axi_bresp = write_error_reg ? 2'b10 : 2'b00;
     assign s_axi_rresp = read_error_reg  ? 2'b10 : 2'b00;
 
@@ -104,8 +105,10 @@ module axi_to_apb_bridge #(
 
             addr_reg         <= '0;
             data_reg         <= '0;
+            strb_reg         <= '0;
             awaddr_reg       <= '0;
             wdata_reg        <= '0;
+            wstrb_reg        <= '0;
 
             is_write         <= 1'b0;
             write_error_reg  <= 1'b0;
@@ -123,18 +126,20 @@ module axi_to_apb_bridge #(
             m_apb_penable    <= 1'b0;
             m_apb_pwrite     <= 1'b0;
             m_apb_pwdata     <= '0;
+            m_apb_pstrb      <= '0;
 
         end else begin
 
-            // Capture AXI write address independently
+            // Capture write address independently
             if (aw_hs) begin
                 awaddr_reg <= s_axi_awaddr;
                 aw_pending <= 1'b1;
             end
 
-            // Capture AXI write data independently
+            // Capture write data and byte strobes together
             if (w_hs) begin
                 wdata_reg <= s_axi_wdata;
+                wstrb_reg <= s_axi_wstrb;
                 w_pending <= 1'b1;
             end
 
@@ -142,13 +147,14 @@ module axi_to_apb_bridge #(
 
                 IDLE: begin
                     if (write_available) begin
-                        // Use captured values when a channel
-                        // was accepted in an earlier cycle.
                         addr_reg <= aw_pending
                                   ? awaddr_reg : s_axi_awaddr;
 
                         data_reg <= w_pending
                                   ? wdata_reg : s_axi_wdata;
+
+                        strb_reg <= w_pending
+                                  ? wstrb_reg : s_axi_wstrb;
 
                         is_write        <= 1'b1;
                         write_error_reg <= 1'b0;
@@ -162,6 +168,7 @@ module axi_to_apb_bridge #(
                         addr_reg       <= s_axi_araddr;
                         is_write       <= 1'b0;
                         read_error_reg <= 1'b0;
+                        strb_reg       <= '0;
 
                         state <= APB_SETUP;
                     end
@@ -173,8 +180,12 @@ module axi_to_apb_bridge #(
                     m_apb_paddr   <= addr_reg;
                     m_apb_pwrite  <= is_write;
 
-                    if (is_write)
+                    if (is_write) begin
                         m_apb_pwdata <= data_reg;
+                        m_apb_pstrb  <= strb_reg;
+                    end else begin
+                        m_apb_pstrb <= '0;
+                    end
 
                     state <= APB_ACCESS;
                 end
@@ -182,7 +193,6 @@ module axi_to_apb_bridge #(
                 APB_ACCESS: begin
                     m_apb_penable <= 1'b1;
 
-                    // Complete only during an active APB access.
                     if (m_apb_penable && m_apb_pready) begin
                         m_apb_psel    <= 1'b0;
                         m_apb_penable <= 1'b0;
@@ -201,7 +211,6 @@ module axi_to_apb_bridge #(
                 end
 
                 AXI_WR_RESP: begin
-                    // Keep BRESP and BVALID stable until handshake.
                     if (s_axi_bvalid && s_axi_bready) begin
                         s_axi_bvalid <= 1'b0;
                         state        <= IDLE;
@@ -209,7 +218,6 @@ module axi_to_apb_bridge #(
                 end
 
                 AXI_RD_RESP: begin
-                    // Keep RDATA, RRESP and RVALID stable until handshake.
                     if (s_axi_rvalid && s_axi_rready) begin
                         s_axi_rvalid <= 1'b0;
                         state        <= IDLE;
@@ -224,6 +232,7 @@ module axi_to_apb_bridge #(
                     s_axi_rvalid  <= 1'b0;
                     aw_pending    <= 1'b0;
                     w_pending     <= 1'b0;
+                    m_apb_pstrb   <= '0;
                 end
 
             endcase

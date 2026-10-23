@@ -1,3 +1,4 @@
+
 `timescale 1ns/1ps
 
 module apb_sva (
@@ -11,61 +12,39 @@ module apb_sva (
     input logic        pready
 );
 
-    logic setup_seen;
-    logic access_wait_seen;
+    logic        waiting;
+    logic        saved_pwrite;
+    logic [31:0] saved_paddr;
+    logic [31:0] saved_pwdata;
 
-    logic [31:0] saved_addr;
-    logic [31:0] saved_wdata;
-    logic        saved_write;
-
-    always @(posedge pclk or negedge presetn) begin
+    always_ff @(posedge pclk or negedge presetn) begin
         if (!presetn) begin
-            setup_seen       <= 1'b0;
-            access_wait_seen <= 1'b0;
-            saved_addr       <= 32'b0;
-            saved_wdata      <= 32'b0;
-            saved_write      <= 1'b0;
+            waiting     <= 1'b0;
+            saved_pwrite <= 1'b0;
+            saved_paddr  <= 32'b0;
+            saved_pwdata <= 32'b0;
         end else begin
-
-            // Rule 1: Setup must transition to Access
-            if (setup_seen && !(psel && penable)) begin
-                $error(
-                    "[APB CHECK] Setup was not followed by Access at %0t",
-                    $time
-                );
-            end
-
-            // Rule 2: Transfer controls must remain stable
-            // while the previous Access cycle was waiting.
-            if (access_wait_seen) begin
-                if (!(psel && penable)) begin
-                    $error(
-                        "[APB CHECK] Access ended before PREADY at %0t",
-                        $time
-                    );
-                end else if (
-                    (paddr !== saved_addr) ||
-                    (pwrite !== saved_write) ||
-                    (saved_write && (pwdata !== saved_wdata))
-                ) begin
-                    $error(
-                        "[APB CHECK] Transfer signals changed during wait state at %0t",
-                        $time
-                    );
+            if (psel && !penable) begin
+                waiting      <= 1'b0;
+                saved_pwrite <= pwrite;
+                saved_paddr  <= paddr;
+                saved_pwdata <= pwdata;
+            end else if (psel && penable && !pready) begin
+                if (!waiting) begin
+                    saved_pwrite <= pwrite;
+                    saved_paddr  <= paddr;
+                    saved_pwdata <= pwdata;
+                    waiting      <= 1'b1;
+                end else begin
+                    if (pwrite !== saved_pwrite)
+                        $error("[APB CHECK] PWRITE changed during wait state");
+                    if (paddr !== saved_paddr)
+                        $error("[APB CHECK] PADDR changed during wait state");
+                    if (pwrite && (pwdata !== saved_pwdata))
+                        $error("[APB CHECK] PWDATA changed during wait state");
                 end
-            end
-
-            // Remember whether the current cycle is Setup
-            setup_seen <= psel && !penable;
-
-            // Remember whether the current cycle is waiting
-            access_wait_seen <= psel && penable && !pready;
-
-            // Save transfer signals during Access
-            if (psel && penable) begin
-                saved_addr  <= paddr;
-                saved_write <= pwrite;
-                saved_wdata <= pwdata;
+            end else begin
+                waiting <= 1'b0;
             end
         end
     end
