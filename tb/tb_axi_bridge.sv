@@ -5,76 +5,78 @@ module tb_axi_bridge;
 
     logic clk, resetn;
 
-    // AXI4-Lite Write Address Channel
+    // AXI write address channel
     logic [31:0] s_axi_awaddr;
-    logic        s_axi_awvalid, s_axi_awready;
+    logic s_axi_awvalid, s_axi_awready;
 
-    // AXI4-Lite Write Data Channel
+    // AXI write data channel
     logic [31:0] s_axi_wdata;
     logic [3:0]  s_axi_wstrb;
-    logic        s_axi_wvalid, s_axi_wready;
+    logic s_axi_wvalid, s_axi_wready;
 
-    // AXI4-Lite Write Response Channel
+    // AXI write response channel
     logic [1:0] s_axi_bresp;
-    logic       s_axi_bvalid, s_axi_bready;
+    logic s_axi_bvalid, s_axi_bready;
 
-    // AXI4-Lite Read Address Channel
+    // AXI read address channel
     logic [31:0] s_axi_araddr;
-    logic        s_axi_arvalid, s_axi_arready;
+    logic s_axi_arvalid, s_axi_arready;
 
-    // AXI4-Lite Read Data Channel
+    // AXI read data channel
     logic [31:0] s_axi_rdata;
-    logic [1:0]  s_axi_rresp;
-    logic        s_axi_rvalid, s_axi_rready;
+    logic [1:0] s_axi_rresp;
+    logic s_axi_rvalid, s_axi_rready;
 
-    // APB4 Interface
+    // APB4 interface
     logic [31:0] paddr, pwdata, prdata;
     logic [3:0]  pstrb;
-    logic        psel, penable, pwrite, pready, pslverr;
+    logic psel, penable, pwrite, pready, pslverr;
 
     integer pass_count = 0;
     integer fail_count = 0;
 
-    // 100 MHz clock
+    logic [31:0] read_value;
+    logic [31:0] held_read_data;
+
     initial clk = 1'b0;
     always #5 clk = ~clk;
 
     // AXI4-Lite to APB4 bridge
     axi_to_apb_bridge bridge_inst (
-        .clk            (clk),
-        .resetn          (resetn),
+        .clk             (clk),
+        .resetn           (resetn),
 
-        .s_axi_awaddr    (s_axi_awaddr),
-        .s_axi_awvalid   (s_axi_awvalid),
-        .s_axi_awready   (s_axi_awready),
+        .s_axi_awaddr     (s_axi_awaddr),
+        .s_axi_awvalid    (s_axi_awvalid),
+        .s_axi_awready    (s_axi_awready),
 
-        .s_axi_wdata     (s_axi_wdata),
-        .s_axi_wstrb     (s_axi_wstrb),
-        .s_axi_wvalid    (s_axi_wvalid),
-        .s_axi_wready    (s_axi_wready),
+        .s_axi_wdata      (s_axi_wdata),
+        .s_axi_wstrb      (s_axi_wstrb),
+        .s_axi_wvalid     (s_axi_wvalid),
+        .s_axi_wready     (s_axi_wready),
 
-        .s_axi_bresp     (s_axi_bresp),
-        .s_axi_bvalid    (s_axi_bvalid),
-        .s_axi_bready    (s_axi_bready),
+        .s_axi_bresp      (s_axi_bresp),
+        .s_axi_bvalid     (s_axi_bvalid),
+        .s_axi_bready     (s_axi_bready),
 
-        .s_axi_araddr    (s_axi_araddr),
-        .s_axi_arvalid   (s_axi_arvalid),
-        .s_axi_arready   (s_axi_arready),
+        .s_axi_araddr     (s_axi_araddr),
+        .s_axi_arvalid    (s_axi_arvalid),
+        .s_axi_arready    (s_axi_arready),
 
-        .s_axi_rdata     (s_axi_rdata),
-        .s_axi_rresp     (s_axi_rresp),
-        .s_axi_rvalid    (s_axi_rvalid),
-        .s_axi_rready    (s_axi_rready),
+        .s_axi_rdata      (s_axi_rdata),
+        .s_axi_rresp      (s_axi_rresp),
+        .s_axi_rvalid     (s_axi_rvalid),
+        .s_axi_rready     (s_axi_rready),
 
-        .m_apb_paddr     (paddr),
-        .m_apb_psel      (psel),
-        .m_apb_penable   (penable),
-        .m_apb_pwrite    (pwrite),
-        .m_apb_pwdata    (pwdata),
-        .m_apb_pstrb     (pstrb),
-        .m_apb_prdata    (prdata),
-        .m_apb_pready    (pready),
-        .m_apb_pslverr   (pslverr)
+        .m_apb_paddr      (paddr),
+        .m_apb_psel       (psel),
+        .m_apb_penable    (penable),
+        .m_apb_pwrite     (pwrite),
+        .m_apb_pwdata     (pwdata),
+        .m_apb_pstrb      (pstrb),
+        .m_apb_prdata     (prdata),
+        .m_apb_pready     (pready),
+        .m_apb_pslverr    (pslverr)
     );
 
     // APB memory slave
@@ -92,9 +94,7 @@ module tb_axi_bridge;
         .pslverr  (pslverr)
     );
 
-    // --------------------------------------------------
     // Send AXI write address
-    // --------------------------------------------------
     task automatic send_aw(input logic [31:0] addr);
         begin
             @(negedge clk);
@@ -110,9 +110,7 @@ module tb_axi_bridge;
         end
     endtask
 
-    // --------------------------------------------------
     // Send AXI write data and byte strobes
-    // --------------------------------------------------
     task automatic send_w(
         input logic [31:0] data,
         input logic [3:0]  strb
@@ -132,9 +130,7 @@ module tb_axi_bridge;
         end
     endtask
 
-    // --------------------------------------------------
     // Send AXI read address
-    // --------------------------------------------------
     task automatic send_ar(input logic [31:0] addr);
         begin
             @(negedge clk);
@@ -150,9 +146,7 @@ module tb_axi_bridge;
         end
     endtask
 
-    // --------------------------------------------------
     // Wait for write response
-    // --------------------------------------------------
     task automatic wait_bresp;
         begin
             do begin
@@ -161,9 +155,7 @@ module tb_axi_bridge;
         end
     endtask
 
-    // --------------------------------------------------
     // Wait for read response
-    // --------------------------------------------------
     task automatic wait_rresp;
         begin
             do begin
@@ -172,9 +164,7 @@ module tb_axi_bridge;
         end
     endtask
 
-    // --------------------------------------------------
     // Complete a write transaction
-    // --------------------------------------------------
     task automatic write_transaction(
         input logic [31:0] addr,
         input logic [31:0] data,
@@ -194,9 +184,7 @@ module tb_axi_bridge;
         end
     endtask
 
-    // --------------------------------------------------
     // Complete a read transaction
-    // --------------------------------------------------
     task automatic read_transaction(
         input  logic [31:0] addr,
         output logic [31:0] data
@@ -215,12 +203,6 @@ module tb_axi_bridge;
             s_axi_rready = 1'b0;
         end
     endtask
-
-    // --------------------------------------------------
-    // Test sequence
-    // --------------------------------------------------
-    logic [31:0] read_value;
-    logic [31:0] held_read_data;
 
     initial begin
         $dumpfile("axi_bridge_waveform.vcd");
@@ -270,6 +252,7 @@ module tb_axi_bridge;
         read_transaction(32'h0000_0004, read_value);
 
         if (read_value == 32'h1234_5678) begin
+            pass_count = pass_count + 1;
             $display("  PASS: Readback = %h", read_value);
         end else begin
             fail_count = fail_count + 1;
@@ -314,17 +297,23 @@ module tb_axi_bridge;
         send_w(32'hDEAD_BEEF, 4'b1111);
         wait_bresp();
 
-        repeat (3) begin
-            @(posedge clk);
-            if (s_axi_bvalid !== 1'b1) begin
-                fail_count = fail_count + 1;
-                $display("  FAIL: BVALID dropped before BREADY");
-            end
-        end
+        begin : test_bready
+            integer errors;
+            errors = 0;
 
-        if (s_axi_bvalid === 1'b1) begin
-            pass_count = pass_count + 1;
-            $display("  PASS: BVALID held while BREADY=0");
+            repeat (3) begin
+                @(posedge clk);
+                if (s_axi_bvalid !== 1'b1)
+                    errors = errors + 1;
+            end
+
+            if (errors == 0) begin
+                pass_count = pass_count + 1;
+                $display("  PASS: BVALID held while BREADY=0");
+            end else begin
+                fail_count = fail_count + 1;
+                $display("  FAIL: BVALID dropped during backpressure");
+            end
         end
 
         @(negedge clk);
@@ -340,19 +329,24 @@ module tb_axi_bridge;
         wait_rresp();
         held_read_data = s_axi_rdata;
 
-        repeat (3) begin
-            @(posedge clk);
-            if ((s_axi_rvalid !== 1'b1) ||
-                (s_axi_rdata !== held_read_data)) begin
-                fail_count = fail_count + 1;
-                $display("  FAIL: Read response not held stable");
-            end
-        end
+        begin : test_rready
+            integer errors;
+            errors = 0;
 
-        if ((s_axi_rvalid === 1'b1) &&
-            (s_axi_rdata === held_read_data)) begin
-            pass_count = pass_count + 1;
-            $display("  PASS: RVALID and RDATA held stable");
+            repeat (3) begin
+                @(posedge clk);
+                if ((s_axi_rvalid !== 1'b1) ||
+                    (s_axi_rdata !== held_read_data))
+                    errors = errors + 1;
+            end
+
+            if (errors == 0) begin
+                pass_count = pass_count + 1;
+                $display("  PASS: RVALID and RDATA held stable");
+            end else begin
+                fail_count = fail_count + 1;
+                $display("  FAIL: Read response changed during backpressure");
+            end
         end
 
         @(negedge clk);
@@ -361,7 +355,7 @@ module tb_axi_bridge;
         @(negedge clk);
         s_axi_rready = 1'b0;
 
-        // TEST 5: Reset clears response outputs
+        // TEST 5: Reset behavior
         $display("[TEST 5] Reset behavior");
 
         @(negedge clk);
@@ -383,6 +377,42 @@ module tb_axi_bridge;
         resetn = 1'b1;
         repeat (2) @(negedge clk);
 
+        // TEST 6: Partial-byte writes
+        $display("[TEST 6] Partial-byte write verification");
+
+        // Initialize memory word: 0x11223344
+        write_transaction(
+            32'h0000_0004,
+            32'h1122_3344,
+            4'b1111
+        );
+
+        // Update byte lane 0 only: 0x44 -> 0xAA
+        write_transaction(
+            32'h0000_0004,
+            32'h1122_33AA,
+            4'b0001
+        );
+
+        // Update byte lane 1 only: 0x33 -> 0xBB
+        write_transaction(
+            32'h0000_0004,
+            32'h1122_BBAA,
+            4'b0010
+        );
+
+        // Read back: upper two bytes must remain unchanged
+        read_transaction(32'h0000_0004, read_value);
+
+        if (read_value == 32'h1122_BBAA) begin
+            pass_count = pass_count + 1;
+            $display("  PASS: Partial writes preserved untouched bytes: %h",
+                     read_value);
+        end else begin
+            fail_count = fail_count + 1;
+            $display("  FAIL: Expected 1122BBAA, got %h", read_value);
+        end
+
         $display("");
         $display("==========================================");
         $display(" AXI BRIDGE TEST SUMMARY");
@@ -396,16 +426,6 @@ module tb_axi_bridge;
             $display("TESTS FAILED");
 
         $finish;
-    end
-
-    // Independent byte-strobe forwarding check
-    // APB PSTRB must match the accepted AXI WSTRB.
-    always @(posedge clk) begin
-        if (resetn && psel && penable && pwrite) begin
-            if (pstrb !== 4'bxxxx) begin
-                // The slave applies each asserted byte lane.
-            end
-        end
     end
 
     initial begin
