@@ -115,6 +115,21 @@ The multi-slave testbench reported **6/6 tests passed**. The AXI bridge testbenc
 The negative APB checker test intentionally changes transfer signals during a wait state and should report a checker error. This is expected behavior for that negative test.
 
 
+### Partial-Byte Write Verification
+
+The AXI bridge testbench verifies byte-lane write support using AXI `WSTRB` and APB `PSTRB`.
+
+- Initialize a 32-bit memory word to `0x11223344`.
+- Write with `WSTRB = 4'b0001` to update only byte lane 0.
+- Write with `WSTRB = 4'b0010` to update only byte lane 1.
+- Read back the word and verify that untouched bytes remain unchanged.
+
+**Expected and observed readback:** `0x1122BBAA`
+
+**AXI bridge test result:** 8 passed, 0 failed.
+
+
+
 ## AXI4-Lite Bridge Waveform
 
 ![AXI Bridge Waveform](../docs/images/axi_bridge_waveform.png)
