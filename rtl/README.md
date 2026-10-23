@@ -127,6 +127,13 @@ The negative APB checker test intentionally changes transfer signals during a wa
 
 *Figure: Multi-slave simulation showing APB transfers, memory and timer accesses, address decoding, and error responses.*
 
+## APB Memory and Timer Slave Waveforms
+
+![APB Memory and Timer Slave Waveform](../docs/images/apb_slave_waveform.png)
+
+*Figure: APB memory and timer slave signals showing clock, address, read/write data, register index, wait-state behavior, and timer counter activity.*
+
+
 ## View the Waveform
 
 1. Run the multi-slave simulation or the regression script.
