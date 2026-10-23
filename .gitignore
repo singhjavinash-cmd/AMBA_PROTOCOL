@@ -10,3 +10,4 @@ sim_bridge
 sim_multislave
 sim_apb_sva
 sim_apb_valid
+sim_axi_random
