@@ -184,6 +184,9 @@ module tb_axi_bridge;
     // Main Test Sequence
     // --------------------------------------------------
     initial begin
+        $dumpfile("axi_bridge_waveform.vcd");
+        $dumpvars(0, tb_axi_bridge);
+        
         clk           = 1'b0;
         resetn        = 1'b0;
 
