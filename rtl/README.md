@@ -114,11 +114,18 @@ The multi-slave testbench reported **6/6 tests passed**. The AXI bridge testbenc
 
 The negative APB checker test intentionally changes transfer signals during a wait state and should report a checker error. This is expected behavior for that negative test.
 
-## Simulation Waveform
 
-![AMBA Protocol Waveform](../docs/images/multislave_waveform.png)
+## AXI4-Lite Bridge Waveform
 
-*Figure: AXI4-Lite to APB multi-slave subsystem waveform showing AXI handshakes, APB setup/access phases, address and data signals, and peripheral responses.*
+![AXI Bridge Waveform](../docs/images/axi_bridge_waveform.png)
+
+*Figure: AXI4-Lite bridge simulation showing write/read handshakes, response backpressure, and reset behavior.*
+
+## Multi-Slave Subsystem Waveform
+
+![Multi-Slave Waveform](../docs/images/multislave_waveform.png)
+
+*Figure: Multi-slave simulation showing APB transfers, memory and timer accesses, address decoding, and error responses.*
 
 ## View the Waveform
 
