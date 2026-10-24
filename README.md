@@ -122,3 +122,23 @@ The testbenches generate VCD waveform files that can be inspected using GTKWave.
 ## Repository
 
 [AMBA_PROTOCOL on GitHub](https://github.com/singhjavinash-cmd/AMBA_PROTOCOL)
+
+## Waveform Results
+
+The following waveforms illustrate the AXI4-Lite to APB bridge operation, including address and data transfers, APB control signals, and byte-strobe propagation.
+
+### AXI-to-APB Bridge Waveform — Page 1
+
+![AXI APB Waveform Page 1](docs/images/axi_apb_waveform_page_1.png)
+
+### AXI-to-APB Bridge Waveform — Page 2
+
+![AXI APB Waveform Page 2](docs/images/axi_apb_waveform_page_2.png)
+
+## Verification Summary
+
+- All 5 simulation test suites passed in the latest observed regression.
+- Multi-slave subsystem: 6/6 tests passed.
+- Randomized AXI write/read verification: 100 transactions checked, 100 passed, 0 failed.
+- Byte-write strobe patterns were exercised and observed in the waveform.
+
