@@ -17,48 +17,59 @@ module apb_timer (
 
     logic [31:0] ctrl_reg;
     logic [31:0] timer_count;
-    wire  [1:0]  reg_offset = paddr[3:2];
+    logic        addr_valid;
 
     integer i;
 
-    assign pready  = 1'b1;
-    assign pslverr = 1'b0;
+    // Only these two aligned addresses are implemented.
+    assign addr_valid =
+        (paddr == 32'h0000_1000) ||
+        (paddr == 32'h0000_1004);
 
-    // Read control register or timer counter
-    assign prdata = (reg_offset == 2'b00) ? ctrl_reg :
-                    (reg_offset == 2'b01) ? timer_count :
-                    32'h0000_0000;
+    // Zero-wait-state APB peripheral.
+    assign pready = presetn;
 
-    // Timer and APB register operations
+    // Error is asserted for an invalid address during APB ACCESS.
+    assign pslverr =
+        presetn && psel && penable && pready && !addr_valid;
+
+    // Register read mux.
+    always_comb begin
+        prdata = 32'b0;
+
+        if (paddr == 32'h0000_1000)
+            prdata = ctrl_reg;
+        else if (paddr == 32'h0000_1004)
+            prdata = timer_count;
+    end
+
+    // Timer register updates.
     always_ff @(posedge pclk or negedge presetn) begin
         if (!presetn) begin
-            ctrl_reg    <= 32'h0000_0000;
-            timer_count <= 32'h0000_0000;
+            ctrl_reg    <= 32'b0;
+            timer_count <= 32'b0;
         end else begin
 
-            // Increment timer while enabled.
-            // An APB write to timer_count takes priority below.
-            if (ctrl_reg[0]) begin
+            // Increment while enabled.
+            if (ctrl_reg[0])
                 timer_count <= timer_count + 1'b1;
-            end
 
-            // APB write with byte strobes
-            if (psel && penable && pwrite) begin
-                if (reg_offset == 2'b00) begin
-                    // Control register: update selected bytes
+            // Write only on a completed, valid APB access.
+            if (psel && penable && pready &&
+                pwrite && addr_valid) begin
+
+                if (paddr == 32'h0000_1000) begin
                     for (i = 0; i < 4; i = i + 1) begin
-                        if (pstrb[i]) begin
+                        if (pstrb[i])
                             ctrl_reg[i*8 +: 8]
                                 <= pwdata[i*8 +: 8];
-                        end
                     end
-                end else if (reg_offset == 2'b01) begin
-                    // Timer counter: update selected bytes
+                end
+                else if (paddr == 32'h0000_1004) begin
                     for (i = 0; i < 4; i = i + 1) begin
-                        if (pstrb[i]) begin
+                        if (pstrb[i])
                             timer_count[i*8 +: 8]
                                 <= pwdata[i*8 +: 8];
-                        end
                     end
                 end
             end

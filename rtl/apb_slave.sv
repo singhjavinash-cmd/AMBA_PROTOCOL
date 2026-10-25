@@ -19,30 +19,47 @@ module apb_slave (
     logic [31:0] reg_bank [0:15];
     logic [3:0]  reg_idx;
     logic [1:0]  wait_count;
+    logic        addr_valid;
+
     integer i;
 
-    // Word-aligned addresses: 0x00, 0x04, ... 0x3C
+    // Valid addresses: aligned words from 0x00 through 0x3C
+    assign addr_valid =
+        (paddr[1:0] == 2'b00) &&
+        (paddr[31:6] == 26'b0);
+
     assign reg_idx = paddr[5:2];
 
-    assign pslverr = 1'b0;
-    assign pready  = (wait_count == 2'd2);
-    assign prdata  = reg_bank[reg_idx];
+    // Two wait cycles, then complete the APB access
+    assign pready =
+        presetn && psel && penable &&
+        (wait_count == 2'd2);
+
+    // Error is meaningful on the completing APB access cycle
+    assign pslverr =
+        presetn && psel && penable && pready &&
+        !addr_valid;
+
+    // Invalid reads return zero
+    assign prdata = addr_valid ? reg_bank[reg_idx] : 32'b0;
 
     always_ff @(posedge pclk or negedge presetn) begin
         if (!presetn) begin
             for (i = 0; i < 16; i = i + 1)
-                reg_bank[i] <= 32'h0000_0000;
+                reg_bank[i] <= 32'b0;
 
             wait_count <= 2'd0;
         end else begin
+
             if (psel && penable) begin
                 if (wait_count < 2'd2) begin
                     wait_count <= wait_count + 1'b1;
                 end else begin
+                    // APB transfer completes on this clock edge
                     wait_count <= 2'd0;
 
-                    if (pwrite) begin
-                        // Update only the selected byte lanes
+                    // Only valid memory addresses may be written
+                    if (addr_valid && pwrite) begin
                         for (i = 0; i < 4; i = i + 1) begin
                             if (pstrb[i]) begin
                                 reg_bank[reg_idx][i*8 +: 8]
@@ -52,6 +69,7 @@ module apb_slave (
                     end
                 end
             end else begin
+                // Reset wait-state counter outside ACCESS phase
                 wait_count <= 2'd0;
             end
         end
