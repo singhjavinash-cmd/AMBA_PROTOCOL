@@ -14,3 +14,4 @@ sim_axi_randomtb/*.bak
 
 sim_axi_random
 tb/*.bak
+sim_*
