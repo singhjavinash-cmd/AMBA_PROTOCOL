@@ -38,6 +38,15 @@ module tb_axi_bridge;
     logic [31:0] read_value;
     logic [31:0] held_read_data;
 
+    // APB wait-state monitor bookkeeping
+    integer apb_wait_cycles = 0;
+    integer apb_wait_errors = 0;
+    logic   apb_wait_active = 1'b0;
+    logic [31:0] held_paddr;
+    logic [31:0] held_pwdata;
+    logic        held_pwrite;
+    logic [3:0]  held_pstrb;
+
     initial clk = 1'b0;
     always #5 clk = ~clk;
 
@@ -93,6 +102,34 @@ module tb_axi_bridge;
         .pready   (pready),
         .pslverr  (pslverr)
     );
+
+    // Check APB address/control stability while ACCESS is stalled.
+    // This observes naturally occurring wait states from the APB slave.
+    always @(posedge clk) begin
+        if (!resetn) begin
+            apb_wait_active <= 1'b0;
+        end else if (psel && penable && !pready) begin
+            apb_wait_cycles <= apb_wait_cycles + 1;
+
+            if (!apb_wait_active) begin
+                held_paddr      <= paddr;
+                held_pwdata     <= pwdata;
+                held_pwrite     <= pwrite;
+                held_pstrb      <= pstrb;
+                apb_wait_active <= 1'b1;
+            end else begin
+                if ((paddr !== held_paddr) ||
+                    (pwrite !== held_pwrite) ||
+                    (pwrite && (pwdata !== held_pwdata)) ||
+                    (pwrite && (pstrb !== held_pstrb))) begin
+                    apb_wait_errors <= apb_wait_errors + 1;
+                    $error("APB control/data changed during a wait state");
+                end
+            end
+        end else begin
+            apb_wait_active <= 1'b0;
+        end
+    end
 
     // Send AXI write address
     task automatic send_aw(input logic [31:0] addr);
@@ -413,6 +450,18 @@ module tb_axi_bridge;
             $display("  FAIL: Expected 1122BBAA, got %h", read_value);
         end
 
+        if (apb_wait_errors == 0) begin
+            if (apb_wait_cycles > 0)
+                $display("  PASS: APB wait-state stability monitor observed %0d stalled cycle(s)",
+                         apb_wait_cycles);
+            else
+                $display("  INFO: No APB wait-state cycles observed; dedicated forced-wait testing is still needed");
+        end else begin
+            fail_count = fail_count + apb_wait_errors;
+            $display("  FAIL: APB wait-state monitor found %0d error(s)",
+                     apb_wait_errors);
+        end
+
         $display("");
         $display("==========================================");
         $display(" AXI BRIDGE TEST SUMMARY");
@@ -420,10 +469,12 @@ module tb_axi_bridge;
         $display(" Failed: %0d", fail_count);
         $display("==========================================");
 
-        if (fail_count == 0)
+        if (fail_count == 0) begin
             $display("ALL TESTS PASSED");
-        else
+        end else begin
             $display("TESTS FAILED");
+            $fatal(1, "AXI bridge testbench failed: %0d failure(s)", fail_count);
+        end
 
         $finish;
     end
