@@ -1,4 +1,3 @@
-
 `timescale 1ns/1ps
 
 module tb_axi_bridge;
@@ -37,6 +36,8 @@ module tb_axi_bridge;
 
     logic [31:0] read_value;
     logic [31:0] held_read_data;
+    logic [1:0]  held_bresp;
+    logic [1:0]  held_rresp;
 
     // APB wait-state monitor bookkeeping
     integer apb_wait_cycles = 0;
@@ -347,10 +348,12 @@ module tb_axi_bridge;
         begin : test_bready
             integer errors;
             errors = 0;
+            held_bresp = s_axi_bresp;
 
             repeat (3) begin
                 @(posedge clk);
-                if (s_axi_bvalid !== 1'b1)
+                if ((s_axi_bvalid !== 1'b1) ||
+                    (s_axi_bresp !== held_bresp))
                     errors = errors + 1;
             end
 
@@ -379,11 +382,13 @@ module tb_axi_bridge;
         begin : test_rready
             integer errors;
             errors = 0;
+            held_rresp = s_axi_rresp;
 
             repeat (3) begin
                 @(posedge clk);
                 if ((s_axi_rvalid !== 1'b1) ||
-                    (s_axi_rdata !== held_read_data))
+                    (s_axi_rdata !== held_read_data) ||
+                    (s_axi_rresp !== held_rresp))
                     errors = errors + 1;
             end
 
