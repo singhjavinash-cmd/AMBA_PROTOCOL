@@ -103,31 +103,41 @@ module tb_axi_bridge;
         .pslverr  (pslverr)
     );
 
-    // Check APB address/control stability while ACCESS is stalled.
-    // This observes naturally occurring wait states from the APB slave.
+    // APB stability monitor: once ACCESS is stalled, address and control
+    // must remain stable until the transfer completes. For writes, data and
+    // byte strobes must also remain stable.
     always @(posedge clk) begin
         if (!resetn) begin
             apb_wait_active <= 1'b0;
-        end else if (psel && penable && !pready) begin
-            apb_wait_cycles <= apb_wait_cycles + 1;
-
-            if (!apb_wait_active) begin
-                held_paddr      <= paddr;
-                held_pwdata     <= pwdata;
-                held_pwrite     <= pwrite;
-                held_pstrb      <= pstrb;
-                apb_wait_active <= 1'b1;
-            end else begin
+            apb_wait_cycles <= 0;
+            apb_wait_errors <= 0;
+        end else begin
+            // If the previous sampled cycle was stalled, compare the current
+            // sampled bus too, including the cycle in which PREADY goes high.
+            if (apb_wait_active) begin
                 if ((paddr !== held_paddr) ||
                     (pwrite !== held_pwrite) ||
-                    (pwrite && (pwdata !== held_pwdata)) ||
-                    (pwrite && (pstrb !== held_pstrb))) begin
+                    (psel !== 1'b1) ||
+                    (penable !== 1'b1) ||
+                    (pwrite && ((pwdata !== held_pwdata) ||
+                                (pstrb !== held_pstrb)))) begin
                     apb_wait_errors <= apb_wait_errors + 1;
-                    $error("APB control/data changed during a wait state");
+                    $error("APB address/control/data changed before stalled transfer completed");
                 end
             end
-        end else begin
-            apb_wait_active <= 1'b0;
+
+            if (psel && penable && !pready) begin
+                apb_wait_cycles <= apb_wait_cycles + 1;
+                if (!apb_wait_active) begin
+                    held_paddr      <= paddr;
+                    held_pwdata     <= pwdata;
+                    held_pwrite     <= pwrite;
+                    held_pstrb      <= pstrb;
+                end
+                apb_wait_active <= 1'b1;
+            end else begin
+                apb_wait_active <= 1'b0;
+            end
         end
     end
 
@@ -450,16 +460,17 @@ module tb_axi_bridge;
             $display("  FAIL: Expected 1122BBAA, got %h", read_value);
         end
 
-        if (apb_wait_errors == 0) begin
-            if (apb_wait_cycles > 0)
-                $display("  PASS: APB wait-state stability monitor observed %0d stalled cycle(s)",
-                         apb_wait_cycles);
-            else
-                $display("  INFO: No APB wait-state cycles observed; dedicated forced-wait testing is still needed");
-        end else begin
+        if ((apb_wait_errors == 0) && (apb_wait_cycles > 0)) begin
+            pass_count = pass_count + 1;
+            $display("  PASS: APB wait-state stability checked across %0d stalled cycle(s)",
+                     apb_wait_cycles);
+        end else if (apb_wait_errors != 0) begin
             fail_count = fail_count + apb_wait_errors;
             $display("  FAIL: APB wait-state monitor found %0d error(s)",
                      apb_wait_errors);
+        end else begin
+            fail_count = fail_count + 1;
+            $display("  FAIL: No APB wait-state cycles observed; wait-state test was not exercised");
         end
 
         $display("");
