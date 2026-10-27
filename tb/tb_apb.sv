@@ -1,3 +1,4 @@
+
 `timescale 1ns/1ps
 
 module tb_apb;
@@ -8,93 +9,112 @@ module tb_apb;
     logic        penable;
     logic        pwrite;
     logic [31:0] pwdata;
+    logic [3:0]  pstrb;
     logic [31:0] prdata;
     logic        pready;
     logic        pslverr;
 
-    apb_slave uut (.*);
+    // APB slave instance
+    apb_slave uut (
+        .pclk    (pclk),
+        .presetn (presetn),
+        .paddr   (paddr),
+        .psel    (psel),
+        .penable (penable),
+        .pwrite  (pwrite),
+        .pwdata  (pwdata),
+        .pstrb   (pstrb),
+        .prdata  (prdata),
+        .pready  (pready),
+        .pslverr (pslverr)
+    );
 
     always #5 pclk = ~pclk;
 
-    // Updated Write Task with PREADY wait
-    task automatic apb_write(input logic [31:0] addr, input logic [31:0] data);
-        @(posedge pclk);
-        // SETUP Phase
-        psel    <= 1'b1;
-        penable <= 1'b0;
-        pwrite  <= 1'b1;
-        paddr   <= addr;
-        pwdata  <= data;
+    task automatic apb_write(
+        input logic [31:0] addr,
+        input logic [31:0] data
+    );
+        @(negedge pclk);
+        psel    = 1'b1;
+        penable = 1'b0;
+        pwrite  = 1'b1;
+        paddr   = addr;
+        pwdata  = data;
+        pstrb   = 4'b1111;
 
-        @(posedge pclk);
-        // ACCESS Phase
-        penable <= 1'b1;
+        @(negedge pclk);
+        penable = 1'b1;
 
-        // Slave ready hone tak wait karo
-        while (!pready) begin
+        do begin
             @(posedge pclk);
-        end
+        end while (!pready);
 
-        // Transfer done -> Return to IDLE
-        @(posedge pclk);
-        psel    <= 1'b0;
-        penable <= 1'b0;
-        pwrite  <= 1'b0;
+        if (pslverr)
+            $display("APB WRITE ERROR: addr=%08h", addr);
+        else
+            $display("APB WRITE SUCCESS: addr=%08h data=%08h",
+                     addr, data);
+
+        @(negedge pclk);
+        psel    = 1'b0;
+        penable = 1'b0;
+        pwrite  = 1'b0;
+        pstrb   = 4'b0000;
     endtask
 
-    // Updated Read Task with PREADY wait
     task automatic apb_read(input logic [31:0] addr);
-        @(posedge pclk);
-        // SETUP Phase
-        psel    <= 1'b1;
-        penable <= 1'b0;
-        pwrite  <= 1'b0;
-        paddr   <= addr;
+        @(negedge pclk);
+        psel    = 1'b1;
+        penable = 1'b0;
+        pwrite  = 1'b0;
+        paddr   = addr;
+        pstrb   = 4'b0000;
 
-        @(posedge pclk);
-        // ACCESS Phase
-        penable <= 1'b1;
+        @(negedge pclk);
+        penable = 1'b1;
 
-        // Slave ready hone tak wait karo
-        while (!pready) begin
+        do begin
             @(posedge pclk);
-        end
+        end while (!pready);
 
-        @(posedge pclk);
-        $display("[SV READ SUCCESS] Addr: 0x%0h | Data: 0x%0h", addr, prdata);
-        psel    <= 1'b0;
-        penable <= 1'b0;
+        if (pslverr)
+            $display("APB READ ERROR: addr=%08h", addr);
+        else
+            $display("APB READ SUCCESS: addr=%08h data=%08h",
+                     addr, prdata);
+
+        @(negedge pclk);
+        psel    = 1'b0;
+        penable = 1'b0;
     endtask
 
     initial begin
         $dumpfile("apb_waveform.vcd");
         $dumpvars(0, tb_apb);
 
-        pclk    = 0;
-        presetn = 0;
-        psel    = 0;
-        penable = 0;
-        pwrite  = 0;
-        paddr   = 0;
-        pwdata  = 0;
+        pclk    = 1'b0;
+        presetn = 1'b0;
+        psel    = 1'b0;
+        penable = 1'b0;
+        pwrite  = 1'b0;
+        paddr   = '0;
+        pwdata  = '0;
+        pstrb   = '0;
 
-        repeat (2) @(posedge pclk);
-        presetn = 1;
-        @(posedge pclk);
+        repeat (2) @(negedge pclk);
+        presetn = 1'b1;
 
-        // Write transactions
-        apb_write(32'h0, 32'hA1B2_C3D4);
-        @(posedge pclk);
-        apb_write(32'h4, 32'h5E6F_7A8B);
-        @(posedge pclk);
+        apb_write(32'h0000_0000, 32'hA1B2_C3D4);
+        apb_write(32'h0000_0004, 32'h5E6F_7A8B);
 
-        // Read transactions
-        apb_read(32'h0);
-        @(posedge pclk);
-        apb_read(32'h4);
-        repeat (3) @(posedge pclk);
+        apb_read(32'h0000_0000);
+        apb_read(32'h0000_0004);
 
-        $display(">> All APB Transfers with Wait-States Verified! <<");
+        repeat (2) @(negedge pclk);
+
+        $display("APB basic test completed.");
         $finish;
     end
+
 endmodule
