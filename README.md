@@ -111,9 +111,12 @@ Useful signals to inspect:
 
 ### Published waveform screenshot
 
-Save the screenshot from the waveform viewer in the repository root as `ahb_apb_system_waveform.png`, then this image will appear here on GitHub:
+### AHB-to-APB System Waveform
 
-![AHB-to-APB System Waveform](ahb_apb_system_waveform.png)
+The waveform below shows the AHB-to-APB integrated system simulation, including AHB transfers, APB setup/access phases, memory readback, timer activity, and the unmapped-address response.
+
+![AHB-to-APB System Waveform](docs/images/ahb_apb_system_waveform.png)
+
 
 ## GitHub update
 
