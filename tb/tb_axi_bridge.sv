@@ -1,35 +1,36 @@
+
 `timescale 1ns/1ps
 
 module tb_axi_bridge;
 
     logic clk, resetn;
 
-    // AXI write address channel
+    // AXI4-Lite write address channel
     logic [31:0] s_axi_awaddr;
-    logic s_axi_awvalid, s_axi_awready;
+    logic        s_axi_awvalid, s_axi_awready;
 
-    // AXI write data channel
+    // AXI4-Lite write data channel
     logic [31:0] s_axi_wdata;
     logic [3:0]  s_axi_wstrb;
-    logic s_axi_wvalid, s_axi_wready;
+    logic        s_axi_wvalid, s_axi_wready;
 
-    // AXI write response channel
+    // AXI4-Lite write response channel
     logic [1:0] s_axi_bresp;
-    logic s_axi_bvalid, s_axi_bready;
+    logic       s_axi_bvalid, s_axi_bready;
 
-    // AXI read address channel
+    // AXI4-Lite read address channel
     logic [31:0] s_axi_araddr;
-    logic s_axi_arvalid, s_axi_arready;
+    logic        s_axi_arvalid, s_axi_arready;
 
-    // AXI read data channel
+    // AXI4-Lite read data channel
     logic [31:0] s_axi_rdata;
-    logic [1:0] s_axi_rresp;
-    logic s_axi_rvalid, s_axi_rready;
+    logic [1:0]  s_axi_rresp;
+    logic        s_axi_rvalid, s_axi_rready;
 
     // APB4 interface
     logic [31:0] paddr, pwdata, prdata;
     logic [3:0]  pstrb;
-    logic psel, penable, pwrite, pready, pslverr;
+    logic        psel, penable, pwrite, pready, pslverr;
 
     integer pass_count = 0;
     integer fail_count = 0;
@@ -39,19 +40,23 @@ module tb_axi_bridge;
     logic [1:0]  held_bresp;
     logic [1:0]  held_rresp;
 
-    // APB wait-state monitor bookkeeping
+    // APB wait-state stability monitor
     integer apb_wait_cycles = 0;
     integer apb_wait_errors = 0;
-    logic   apb_wait_active = 1'b0;
+
+    logic        apb_wait_active = 1'b0;
     logic [31:0] held_paddr;
     logic [31:0] held_pwdata;
     logic        held_pwrite;
     logic [3:0]  held_pstrb;
 
+    // Clock generation
     initial clk = 1'b0;
     always #5 clk = ~clk;
 
-    // AXI4-Lite to APB4 bridge
+    // --------------------------------------------------
+    // DUT: AXI4-Lite to APB4 Bridge
+    // --------------------------------------------------
     axi_to_apb_bridge bridge_inst (
         .clk             (clk),
         .resetn           (resetn),
@@ -89,7 +94,9 @@ module tb_axi_bridge;
         .m_apb_pslverr    (pslverr)
     );
 
+    // --------------------------------------------------
     // APB memory slave
+    // --------------------------------------------------
     apb_slave slave_inst (
         .pclk     (clk),
         .presetn  (resetn),
@@ -104,37 +111,43 @@ module tb_axi_bridge;
         .pslverr  (pslverr)
     );
 
-    // APB stability monitor: once ACCESS is stalled, address and control
-    // must remain stable until the transfer completes. For writes, data and
-    // byte strobes must also remain stable.
+    // --------------------------------------------------
+    // APB wait-state stability monitor
+    // --------------------------------------------------
     always @(posedge clk) begin
         if (!resetn) begin
             apb_wait_active <= 1'b0;
             apb_wait_cycles <= 0;
             apb_wait_errors <= 0;
         end else begin
-            // If the previous sampled cycle was stalled, compare the current
-            // sampled bus too, including the cycle in which PREADY goes high.
+
             if (apb_wait_active) begin
                 if ((paddr !== held_paddr) ||
                     (pwrite !== held_pwrite) ||
                     (psel !== 1'b1) ||
                     (penable !== 1'b1) ||
-                    (pwrite && ((pwdata !== held_pwdata) ||
-                                (pstrb !== held_pstrb)))) begin
+                    (pwrite &&
+                     ((pwdata !== held_pwdata) ||
+                      (pstrb  !== held_pstrb)))) begin
+
                     apb_wait_errors <= apb_wait_errors + 1;
-                    $error("APB address/control/data changed before stalled transfer completed");
+
+                    $error(
+                        "APB signals changed during a stalled transfer"
+                    );
                 end
             end
 
             if (psel && penable && !pready) begin
                 apb_wait_cycles <= apb_wait_cycles + 1;
+
                 if (!apb_wait_active) begin
-                    held_paddr      <= paddr;
-                    held_pwdata     <= pwdata;
-                    held_pwrite     <= pwrite;
-                    held_pstrb      <= pstrb;
+                    held_paddr  <= paddr;
+                    held_pwdata <= pwdata;
+                    held_pwrite <= pwrite;
+                    held_pstrb  <= pstrb;
                 end
+
                 apb_wait_active <= 1'b1;
             end else begin
                 apb_wait_active <= 1'b0;
@@ -142,7 +155,9 @@ module tb_axi_bridge;
         end
     end
 
-    // Send AXI write address
+    // --------------------------------------------------
+    // AXI write address task
+    // --------------------------------------------------
     task automatic send_aw(input logic [31:0] addr);
         begin
             @(negedge clk);
@@ -158,7 +173,9 @@ module tb_axi_bridge;
         end
     endtask
 
-    // Send AXI write data and byte strobes
+    // --------------------------------------------------
+    // AXI write data task
+    // --------------------------------------------------
     task automatic send_w(
         input logic [31:0] data,
         input logic [3:0]  strb
@@ -178,7 +195,9 @@ module tb_axi_bridge;
         end
     endtask
 
-    // Send AXI read address
+    // --------------------------------------------------
+    // AXI read address task
+    // --------------------------------------------------
     task automatic send_ar(input logic [31:0] addr);
         begin
             @(negedge clk);
@@ -194,7 +213,9 @@ module tb_axi_bridge;
         end
     endtask
 
-    // Wait for write response
+    // --------------------------------------------------
+    // Wait for AXI write response
+    // --------------------------------------------------
     task automatic wait_bresp;
         begin
             do begin
@@ -203,7 +224,9 @@ module tb_axi_bridge;
         end
     endtask
 
-    // Wait for read response
+    // --------------------------------------------------
+    // Wait for AXI read response
+    // --------------------------------------------------
     task automatic wait_rresp;
         begin
             do begin
@@ -212,7 +235,9 @@ module tb_axi_bridge;
         end
     endtask
 
-    // Complete a write transaction
+    // --------------------------------------------------
+    // Complete one write transaction
+    // --------------------------------------------------
     task automatic write_transaction(
         input logic [31:0] addr,
         input logic [31:0] data,
@@ -232,7 +257,9 @@ module tb_axi_bridge;
         end
     endtask
 
-    // Complete a read transaction
+    // --------------------------------------------------
+    // Complete one read transaction
+    // --------------------------------------------------
     task automatic read_transaction(
         input  logic [31:0] addr,
         output logic [31:0] data
@@ -252,6 +279,9 @@ module tb_axi_bridge;
         end
     endtask
 
+    // --------------------------------------------------
+    // Main test sequence
+    // --------------------------------------------------
     initial begin
         $dumpfile("axi_bridge_waveform.vcd");
         $dumpvars(0, tb_axi_bridge);
@@ -276,7 +306,7 @@ module tb_axi_bridge;
         $display(" AXI4-Lite to APB4 Bridge Testbench");
         $display("==========================================");
 
-        // TEST 1: AW arrives before W
+        // TEST 1: AW before W
         $display("[TEST 1] Write address before write data");
 
         send_aw(32'h0000_0004);
@@ -307,7 +337,7 @@ module tb_axi_bridge;
             $display("  FAIL: Readback = %h", read_value);
         end
 
-        // TEST 2: W arrives before AW
+        // TEST 2: W before AW
         $display("[TEST 2] Write data before write address");
 
         send_w(32'hA5A5_5A5A, 4'b1111);
@@ -351,7 +381,8 @@ module tb_axi_bridge;
             held_bresp = s_axi_bresp;
 
             repeat (3) begin
-                @(posedge clk);
+                @(negedge clk);
+
                 if ((s_axi_bvalid !== 1'b1) ||
                     (s_axi_bresp !== held_bresp))
                     errors = errors + 1;
@@ -359,10 +390,10 @@ module tb_axi_bridge;
 
             if (errors == 0) begin
                 pass_count = pass_count + 1;
-                $display("  PASS: BVALID held while BREADY=0");
+                $display("  PASS: BVALID and BRESP held stable");
             end else begin
                 fail_count = fail_count + 1;
-                $display("  FAIL: BVALID dropped during backpressure");
+                $display("  FAIL: B response changed during backpressure");
             end
         end
 
@@ -377,15 +408,17 @@ module tb_axi_bridge;
 
         send_ar(32'h0000_0004);
         wait_rresp();
+
         held_read_data = s_axi_rdata;
+        held_rresp     = s_axi_rresp;
 
         begin : test_rready
             integer errors;
             errors = 0;
-            held_rresp = s_axi_rresp;
 
             repeat (3) begin
-                @(posedge clk);
+                @(negedge clk);
+
                 if ((s_axi_rvalid !== 1'b1) ||
                     (s_axi_rdata !== held_read_data) ||
                     (s_axi_rresp !== held_rresp))
@@ -394,7 +427,7 @@ module tb_axi_bridge;
 
             if (errors == 0) begin
                 pass_count = pass_count + 1;
-                $display("  PASS: RVALID and RDATA held stable");
+                $display("  PASS: RVALID, RDATA and RRESP held stable");
             end else begin
                 fail_count = fail_count + 1;
                 $display("  FAIL: Read response changed during backpressure");
@@ -419,6 +452,7 @@ module tb_axi_bridge;
             (s_axi_rvalid === 1'b0) &&
             (psel === 1'b0) &&
             (penable === 1'b0)) begin
+
             pass_count = pass_count + 1;
             $display("  PASS: Reset clears response and APB controls");
         end else begin
@@ -432,52 +466,64 @@ module tb_axi_bridge;
         // TEST 6: Partial-byte writes
         $display("[TEST 6] Partial-byte write verification");
 
-        // Initialize memory word: 0x11223344
+        // Initialize word to 0x11223344
         write_transaction(
             32'h0000_0004,
             32'h1122_3344,
             4'b1111
         );
 
-        // Update byte lane 0 only: 0x44 -> 0xAA
+        // Update byte lane 0: 0x44 -> 0xAA
         write_transaction(
             32'h0000_0004,
             32'h1122_33AA,
             4'b0001
         );
 
-        // Update byte lane 1 only: 0x33 -> 0xBB
+        // Update byte lane 1: 0x33 -> 0xBB
         write_transaction(
             32'h0000_0004,
             32'h1122_BBAA,
             4'b0010
         );
 
-        // Read back: upper two bytes must remain unchanged
         read_transaction(32'h0000_0004, read_value);
 
         if (read_value == 32'h1122_BBAA) begin
             pass_count = pass_count + 1;
-            $display("  PASS: Partial writes preserved untouched bytes: %h",
-                     read_value);
+            $display(
+                "  PASS: Partial writes preserved untouched bytes: %h",
+                read_value
+            );
         end else begin
             fail_count = fail_count + 1;
-            $display("  FAIL: Expected 1122BBAA, got %h", read_value);
+            $display(
+                "  FAIL: Expected 1122BBAA, got %h",
+                read_value
+            );
         end
+
+        // TEST 7: APB wait-state stability
+        $display("[TEST 7] APB wait-state stability");
 
         if ((apb_wait_errors == 0) && (apb_wait_cycles > 0)) begin
             pass_count = pass_count + 1;
-            $display("  PASS: APB wait-state stability checked across %0d stalled cycle(s)",
-                     apb_wait_cycles);
+            $display(
+                "  PASS: APB stability checked across %0d stalled cycles",
+                apb_wait_cycles
+            );
         end else if (apb_wait_errors != 0) begin
-            fail_count = fail_count + apb_wait_errors;
-            $display("  FAIL: APB wait-state monitor found %0d error(s)",
-                     apb_wait_errors);
+            fail_count = fail_count + 1;
+            $display(
+                "  FAIL: APB monitor found %0d error(s)",
+                apb_wait_errors
+            );
         end else begin
             fail_count = fail_count + 1;
-            $display("  FAIL: No APB wait-state cycles observed; wait-state test was not exercised");
+            $display("  FAIL: No APB wait-state cycles observed");
         end
 
+        // Final summary
         $display("");
         $display("==========================================");
         $display(" AXI BRIDGE TEST SUMMARY");
@@ -495,6 +541,7 @@ module tb_axi_bridge;
         $finish;
     end
 
+    // Simulation timeout watchdog
     initial begin
         #200000;
         $fatal(1, "Testbench timeout");
