@@ -1,131 +1,142 @@
-# AMBA AXI4-Lite to APB4 Bridge with Memory and Timer Peripherals
+# AMBA Protocol Interconnect: AXI4-Lite/APB and AHB-Lite/APB
 
-## Project Overview
+A SystemVerilog learning project demonstrating protocol bridges and APB peripherals. The repository contains an AXI4-Lite-to-APB path and an AHB-Lite-to-APB path, with simulation testbenches.
 
-This project implements an AMBA AXI4-Lite to APB4 protocol bridge using SystemVerilog RTL. It connects an AXI4-Lite interface to an APB-based peripheral subsystem containing memory and timer peripherals.
-
-The project focuses on protocol conversion, memory-mapped read and write transactions, byte-level write strobes, peripheral integration, and simulation-based functional verification.
+> Scope note: this is a project implementation and simulation exercise, not a claim of complete AMBA-family implementation or formal ARM compliance certification.
 
 ## Architecture
 
 ```text
-       AXI4-Lite Master
-               |
-               v
-    +-----------------------+
-    | AXI4-Lite to APB4     |
-    | Bridge                |
-    +-----------------------+
-               |
-               v
-    +-----------------------+
-    | APB Subsystem         |
-    | Address Decoding      |
-    +-----------------------+
-          |           |
-          v           v
-     +---------+  +---------+
-     | Memory  |  | Timer   |
-     | Slave   |  | Peripheral
-     +---------+  +---------+
+AXI4-Lite Master
+      |
+      v
+AXI4-Lite-to-APB Bridge
+      |
+      v
+ APB Subsystem -------- APB Memory Slave
+      |                 APB Timer
+      +---------------- Address/response mux
+
+
+AHB-Lite Master
+      |
+      v
+AHB-Lite-to-APB Bridge
+      |
+      v
+ APB Address/Response Mux
+      |                 |
+      v                 v
+ APB Memory Slave    APB Timer
 ```
 
-## Key Features
+## AHB-Lite to APB address map
 
-- AXI4-Lite to APB4 protocol bridging.
-- Independent AXI write-address and write-data capture.
-- AXI read and write response handling.
-- APB setup and access phases with wait-state support.
-- Byte-level write support using AXI `WSTRB` and APB `PSTRB`.
-- Memory-mapped memory and timer peripherals.
-- Error responses for unmapped addresses.
-- SystemVerilog RTL and self-checking testbenches.
-- SystemVerilog Assertions (SVA) test infrastructure.
-- Waveform-based simulation debugging.
+| Address range / address | Peripheral | Behavior |
+|---|---|---|
+| `0x0000_0XXX` | APB memory | Memory-mapped registers; wait states are supported |
+| `0x0000_1XXX` | APB timer | Timer control and counter |
+| `0x0000_2000` and other unmapped regions | Error response | Bridge reports an AHB error |
 
-## Technology Stack
+Timer registers exercised by the integrated testbench:
 
-- SystemVerilog
-- RTL design and simulation
-- AXI4-Lite and APB4 protocols
-- Self-checking testbenches
-- SystemVerilog Assertions
-- Git and GitHub
+| Address | Register | Use |
+|---|---|---|
+| `0x0000_1000` | Control | Bit 0 enables the timer |
+| `0x0000_1004` | Counter | Reads the running counter |
 
-## Verification Results
+## Relevant source files
 
-The latest recorded regression output reported:
+### RTL
+- `rtl/ahb_lite_master.sv` — AHB-Lite test master
+- `rtl/ahb_lite_slave.sv` — AHB-Lite slave module, if used by the standalone tests
+- `rtl/ahb_to_apb_bridge.sv` — AHB-Lite-to-APB bridge
+- `rtl/axi_to_apb_bridge.sv` — AXI4-Lite-to-APB bridge
+- `rtl/apb_slave.sv` — APB memory peripheral
+- `rtl/apb_timer.sv` — APB timer peripheral
+- `rtl/apb_subsystem.sv` — APB subsystem integration
 
-- All 6 test suites passed.
-- Integrated subsystem test: 12 checks passed.
-- Randomized AXI byte-write test: 100 transactions checked.
-- Readback passes: 100.
-- Readback failures: 0.
-- Unmapped-address error response tested.
-- Waveform screenshots included under `docs/images/`.
+### Testbenches
+- `tb/tb_ahb_apb_system.sv` — integrated AHB-to-APB system test
+- `tb/tb_ahb_to_apb_bridge.sv` — AHB-to-APB bridge test
+- `tb/tb_ahb_lite.sv` — AHB-Lite master/slave test, if supported by the local source set
+- Existing AXI/APB testbenches — use the exact module/file names present in `tb/`.
 
-These results reflect the recorded simulation run; they do not by themselves establish complete AMBA protocol compliance or formal verification.
+## Run the integrated AHB-to-APB system test
 
-## Repository Structure
-
-```text
-amba_apb_project/
-├── rtl/
-│   ├── axi_to_apb_bridge.sv
-│   ├── apb_slave.sv
-│   ├── apb_timer.sv
-│   └── apb_subsystem.sv
-├── tb/
-│   ├── tb_axi_bridge.sv
-│   ├── tb_axi_random.sv
-│   ├── tb_apb.sv
-│   ├── tb_apb_self_checking.sv
-│   ├── tb_apb_subsystem.sv
-│   ├── tb_multislave_subsystem.sv
-│   └── apb_sva.sv
-├── docs/
-│   └── images/
-├── run_all.sh
-└── README.md
-```
-
-## How to Run
-
-Run the regression script from the project root:
+From the repository root, run:
 
 ```bash
-bash run_all.sh
+iverilog -g2012 -s tb_ahb_apb_system -o ahb_apb_system_test \
+  rtl/ahb_lite_master.sv \
+  rtl/ahb_to_apb_bridge.sv \
+  rtl/apb_slave.sv \
+  rtl/apb_timer.sv \
+  tb/tb_ahb_apb_system.sv
+
+vvp ahb_apb_system_test
 ```
 
-The script executes the configured simulation test suites. A successful run should report that all configured test suites passed.
+A successful run should end with output similar to:
 
-## Waveform Results
+```text
+AHB-to-APB checks = 12
+AHB-to-APB errors = 0
+ALL AHB-to-APB SYSTEM TESTS PASSED
+```
 
-Waveform screenshots are available in `docs/images/`:
+The integrated test checks memory writes/readbacks, timer enable/control readback, timer counter increment, and an unmapped-address error response.
 
-- `axi_apb_waveform_page_1.png`
-- `axi_apb_waveform_page_2.png`
-- `axi_bridge_waveform.png`
-- `multislave_waveform.png`
+## Waveform evidence
 
-## Learning Outcomes
+To capture a waveform, add the following near the start of the `initial` test sequence in `tb/tb_ahb_apb_system.sv`, before reset/test activity:
 
-- Understanding AXI4-Lite read and write handshakes.
-- Understanding APB setup and access timing.
-- Designing finite-state machines for protocol conversion.
-- Implementing byte-enabled memory writes.
-- Integrating memory-mapped peripherals.
-- Writing self-checking SystemVerilog testbenches.
-- Debugging RTL through simulation waveforms.
+```systemverilog
+initial begin
+    $dumpfile("ahb_apb_system.vcd");
+    $dumpvars(0, tb_ahb_apb_system);
+end
+```
 
-## Future Improvements
+If the file already has a main `initial begin`, do **not** create a duplicate enclosing block; instead add just the two `$dump...` statements inside that existing block. Alternatively, place them in a separate `initial` block.
 
-- Expand protocol assertions and corner-case verification.
-- Verify response backpressure and reset during active transfers.
-- Add lint and synthesis checks using available EDA tools.
-- Improve functional coverage and verification documentation.
-- Explore integration with additional AMBA bus components.
+Recompile and rerun using the commands above. Open the VCD in GTKWave if installed:
 
-## Project Scope
+```bash
+gtkwave ahb_apb_system.vcd
+```
 
-This project focuses on an AXI4-Lite to APB4 bridge and a peripheral subsystem. It is not a complete implementation of every AMBA protocol.
+Useful signals to inspect:
+- AHB: `HADDR`, `HTRANS`, `HWRITE`, `HREADY`, `HREADYOUT`, `HRESP`
+- APB: `PSEL`, `PENABLE`, `PADDR`, `PWRITE`, `PWDATA`, `PRDATA`, `PREADY`, `PSLVERR`
+- Test control: `start`, `busy`, `done`, `error`, `rdata`
+
+## GitHub update
+
+Review the changes before committing. From the repository root:
+
+```bash
+git status
+git add README.md rtl tb
+git diff --cached --stat
+git commit -m "Document AHB-to-APB integration and simulation"
+git push
+```
+
+If you only want to commit this documentation and the current testbench changes, stage the exact files instead of all of `rtl` and `tb`, for example:
+
+```bash
+git add README.md tb/tb_ahb_apb_system.sv
+```
+
+Do not commit generated binaries such as `ahb_apb_system_test` or large waveform files unless you intentionally want to keep waveform evidence in the repository. Consider adding generated files to `.gitignore`.
+
+## Suggested `.gitignore`
+
+```gitignore
+*.vcd
+*_test
+a.out
+```
+
+Keep a waveform locally for debugging; if you want to publish a waveform screenshot, save a clear GTKWave screenshot under `docs/images/` and mention what signals it demonstrates.
