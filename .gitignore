@@ -15,3 +15,15 @@ sim_axi_randomtb/*.bak
 sim_axi_random
 tb/*.bak
 sim_*
+
+# Compiled simulation binaries
+ahb_apb_system_test
+ahb_integration_test
+ahb_test
+bridge_compile
+bridge_test
+master_compile
+master_test
+
+# Waveform files
+*.vcd
