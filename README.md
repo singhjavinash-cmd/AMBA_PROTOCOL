@@ -8,56 +8,59 @@ A SystemVerilog learning project demonstrating protocol bridges and APB peripher
 
 This project demonstrates two independent AMBA bridge paths that connect bus masters to APB peripherals.
 
-### AXI4-Lite to APB
 
-```text
-+-------------------+
-|  AXI4-Lite Master |
-+-------------------+
-          |
-          v
-+------------------------+
-| AXI4-Lite-to-APB Bridge|
-+------------------------+
-          |
-          v
-+------------------------+
-|     APB Subsystem      |
-|  Address/Response Mux  |
-+------------------------+
-       |           |
-       v           v
-+-------------+ +-----------+
-| APB Memory  | | APB Timer |
-|   Slave     | | Peripheral|
-+-------------+ +-----------+
+## Architecture
 
-```
-
-### AHB-Lite to APB
+### AXI4-Lite to APB4 path
 
 ```text
 +------------------+
-|  AHB-Lite Master |
+| AXI4-Lite Master |
++--------+---------+
+         |
+         v
 +------------------+
-          |
-          v
-+-----------------------+
-| AHB-Lite-to-APB Bridge|
-+-----------------------+
-          |
-          v
-+-----------------------+
-| APB Address/Response  |
-|         Mux           |
-+-----------------------+
-       |           |
-       v           v
-+-------------+ +-----------+
-| APB Memory  | | APB Timer |
-|   Slave     | | Peripheral|
-+-------------+ +-----------+
+| AXI-to-APB Bridge|
++--------+---------+
+         |
+         v
++------------------+
+|   APB Interface  |
++--------+---------+
+         |
+         +-------------------+
+         |                   |
+         v                   v
++----------------+   +----------------+
+| APB Memory     |   | APB Timer      |
+| Slave          |   | Peripheral     |
++----------------+   +----------------+
+
+### AHB-Lite to APB path
+
++------------------+
+| AHB-Lite Master  |
++--------+---------+
+         |
+         v
++------------------+
+| AHB-to-APB Bridge|
++--------+---------+
+         |
+         v
++------------------+
+|   APB Interface  |
++--------+---------+
+         |
+         +-------------------+
+         |                   |
+         v                   v
++----------------+   +----------------+
+| APB Memory     |   | APB Timer      |
+| Slave          |   | Peripheral     |
++----------------+   +----------------+
 ```
+
 
 Both paths are simulated using SystemVerilog testbenches. The APB peripherals provide memory-mapped storage and timer functionality.
 ```
