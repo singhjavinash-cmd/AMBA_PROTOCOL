@@ -6,28 +6,60 @@ A SystemVerilog learning project demonstrating protocol bridges and APB peripher
 
 ## Architecture
 
+This project demonstrates two independent AMBA bridge paths that connect bus masters to APB peripherals.
+
+### AXI4-Lite to APB
+
 ```text
-AXI4-Lite Master
-       |
-       v
-AXI4-Lite-to-APB Bridge
-       |
-       v
-APB Subsystem -------- APB Memory Slave
-       |                APB Timer
-       +---------------- Address/response mux
++-------------------+
+|  AXI4-Lite Master |
++-------------------+
+          |
+          v
++------------------------+
+| AXI4-Lite-to-APB Bridge|
++------------------------+
+          |
+          v
++------------------------+
+|     APB Subsystem      |
+|  Address/Response Mux  |
++------------------------+
+       |           |
+       v           v
++-------------+ +-----------+
+| APB Memory  | | APB Timer |
+|   Slave     | | Peripheral|
++-------------+ +-----------+
 
+```
 
-AHB-Lite Master
-       |
-       v
-AHB-Lite-to-APB Bridge
-       |
-       v
-APB Address/Response Mux
-       |                 |
-       v                 v
-APB Memory Slave     APB Timer
+### AHB-Lite to APB
+
+```text
++------------------+
+|  AHB-Lite Master |
++------------------+
+          |
+          v
++-----------------------+
+| AHB-Lite-to-APB Bridge|
++-----------------------+
+          |
+          v
++-----------------------+
+| APB Address/Response  |
+|         Mux           |
++-----------------------+
+       |           |
+       v           v
++-------------+ +-----------+
+| APB Memory  | | APB Timer |
+|   Slave     | | Peripheral|
++-------------+ +-----------+
+```
+
+Both paths are simulated using SystemVerilog testbenches. The APB peripherals provide memory-mapped storage and timer functionality.
 ```
 
 ## AHB-Lite to APB address map
