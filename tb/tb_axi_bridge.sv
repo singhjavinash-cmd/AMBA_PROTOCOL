@@ -35,6 +35,7 @@ module tb_axi_bridge;
     integer fail_count = 0;
 
     logic [31:0] read_value;
+    logic [31:0] concurrent_read_data;
     logic [31:0] held_read_data;
     logic [1:0]  held_bresp;
     logic [1:0]  held_rresp;
@@ -555,6 +556,80 @@ module tb_axi_bridge;
         end else begin
             fail_count = fail_count + 1;
             $display("  FAIL: RRESP=%b RDATA=%h", s_axi_rresp, s_axi_rdata);
+        end
+
+        @(negedge clk);
+        s_axi_rready = 1'b1;
+        @(posedge clk);
+        @(negedge clk);
+        s_axi_rready = 1'b0;
+
+
+        // TEST 10: Simultaneous read/write requests
+        $display("[TEST 10] Simultaneous read/write requests");
+
+        // Prepare known read data at address 0x08.
+        write_transaction(32'h0000_0008, 32'hA5A5_5A5A, 4'b1111);
+
+        // Assert AW, W, and AR together. The bridge should accept the
+        // write first and keep ARVALID pending until it can accept the read.
+        @(negedge clk);
+        s_axi_awaddr  = 32'h0000_000C;
+        s_axi_awvalid = 1'b1;
+        s_axi_wdata   = 32'h1234_ABCD;
+        s_axi_wstrb   = 4'b1111;
+        s_axi_wvalid  = 1'b1;
+        s_axi_araddr  = 32'h0000_0008;
+        s_axi_arvalid = 1'b1;
+
+        // AW and W are accepted independently; both are presented together.
+        fork
+            begin
+                do @(posedge clk); while (s_axi_awready !== 1'b1);
+                @(negedge clk);
+                s_axi_awvalid = 1'b0;
+            end
+            begin
+                do @(posedge clk); while (s_axi_wready !== 1'b1);
+                @(negedge clk);
+                s_axi_wvalid = 1'b0;
+            end
+        join
+
+        // The read request remains asserted while the write is in progress.
+        wait_bresp();
+
+        if (s_axi_bresp == 2'b00) begin
+            pass_count = pass_count + 1;
+            $display("  PASS: Concurrent write response OKAY");
+        end else begin
+            fail_count = fail_count + 1;
+            $display("  FAIL: Concurrent write BRESP=%b", s_axi_bresp);
+        end
+
+        // Accept the write response so the bridge can return to IDLE.
+        @(negedge clk);
+        s_axi_bready = 1'b1;
+        @(posedge clk);
+        @(negedge clk);
+        s_axi_bready = 1'b0;
+
+        // Wait until the previously held read request is accepted.
+        do @(posedge clk); while (s_axi_arready !== 1'b1);
+        @(negedge clk);
+        s_axi_arvalid = 1'b0;
+
+        wait_rresp();
+        concurrent_read_data = s_axi_rdata;
+
+        if ((s_axi_rresp == 2'b00) &&
+            (concurrent_read_data == 32'hA5A5_5A5A)) begin
+            pass_count = pass_count + 1;
+            $display("  PASS: Deferred read completed with expected data");
+        end else begin
+            fail_count = fail_count + 1;
+            $display("  FAIL: RRESP=%b RDATA=%h",
+                     s_axi_rresp, concurrent_read_data);
         end
 
         @(negedge clk);
