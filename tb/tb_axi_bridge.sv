@@ -587,4 +587,70 @@ module tb_axi_bridge;
         $fatal(1, "Testbench timeout");
     end
 
+    // --------------------------------------------------
+    // AXI4-Lite VALID/READY stability monitors
+    // Procedural checks compatible with Icarus Verilog
+    // --------------------------------------------------
+
+    logic aw_was_stalled;
+    logic w_was_stalled;
+    logic b_was_stalled;
+    logic r_was_stalled;
+
+    logic [31:0] held_awaddr_monitor;
+    logic [35:0] held_wpayload_monitor;
+    logic [1:0]  held_bresp_monitor;
+    logic [33:0] held_rpayload_monitor;
+
+    always @(posedge clk or negedge resetn) begin
+        if (!resetn) begin
+            aw_was_stalled       <= 1'b0;
+            w_was_stalled        <= 1'b0;
+            b_was_stalled        <= 1'b0;
+            r_was_stalled        <= 1'b0;
+            held_awaddr_monitor  <= '0;
+            held_wpayload_monitor <= '0;
+            held_bresp_monitor   <= '0;
+            held_rpayload_monitor <= '0;
+        end else begin
+            // AW: address must remain stable until handshake.
+            if (aw_was_stalled &&
+                (!s_axi_awvalid || s_axi_awaddr !== held_awaddr_monitor))
+                $error("AXI AW address/VALID changed while stalled");
+
+            aw_was_stalled <= s_axi_awvalid && !s_axi_awready;
+            if (s_axi_awvalid && !s_axi_awready)
+                held_awaddr_monitor <= s_axi_awaddr;
+
+            // W: data and strobes must remain stable until handshake.
+            if (w_was_stalled &&
+                (!s_axi_wvalid ||
+                 {s_axi_wdata, s_axi_wstrb} !== held_wpayload_monitor))
+                $error("AXI W data/strobes/VALID changed while stalled");
+
+            w_was_stalled <= s_axi_wvalid && !s_axi_wready;
+            if (s_axi_wvalid && !s_axi_wready)
+                held_wpayload_monitor <= {s_axi_wdata, s_axi_wstrb};
+
+            // B: response must remain stable while BREADY is low.
+            if (b_was_stalled &&
+                (!s_axi_bvalid || s_axi_bresp !== held_bresp_monitor))
+                $error("AXI B response/VALID changed while stalled");
+
+            b_was_stalled <= s_axi_bvalid && !s_axi_bready;
+            if (s_axi_bvalid && !s_axi_bready)
+                held_bresp_monitor <= s_axi_bresp;
+
+            // R: data and response must remain stable while RREADY is low.
+            if (r_was_stalled &&
+                (!s_axi_rvalid ||
+                 {s_axi_rdata, s_axi_rresp} !== held_rpayload_monitor))
+                $error("AXI R data/response/VALID changed while stalled");
+
+            r_was_stalled <= s_axi_rvalid && !s_axi_rready;
+            if (s_axi_rvalid && !s_axi_rready)
+                held_rpayload_monitor <= {s_axi_rdata, s_axi_rresp};
+        end
+    end
+
 endmodule
