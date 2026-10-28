@@ -1,4 +1,3 @@
-
 `timescale 1ns/1ps
 
 module tb_axi_bridge;
@@ -522,6 +521,47 @@ module tb_axi_bridge;
             fail_count = fail_count + 1;
             $display("  FAIL: No APB wait-state cycles observed");
         end
+
+        // TEST 8: Invalid APB address - AXI write error
+        $display("[TEST 8] Invalid address write error");
+
+        send_aw(32'h0000_0040);
+        send_w(32'hDEAD_BEEF, 4'b1111);
+        wait_bresp();
+
+        if (s_axi_bresp == 2'b10) begin
+            pass_count = pass_count + 1;
+            $display("  PASS: BRESP = SLVERR");
+        end else begin
+            fail_count = fail_count + 1;
+            $display("  FAIL: Expected BRESP=10, got %b", s_axi_bresp);
+        end
+
+        @(negedge clk);
+        s_axi_bready = 1'b1;
+        @(posedge clk);
+        @(negedge clk);
+        s_axi_bready = 1'b0;
+
+        // TEST 9: Invalid APB address - AXI read error
+        $display("[TEST 9] Invalid address read error");
+
+        send_ar(32'h0000_0040);
+        wait_rresp();
+
+        if ((s_axi_rresp == 2'b10) && (s_axi_rdata == 32'b0)) begin
+            pass_count = pass_count + 1;
+            $display("  PASS: RRESP=SLVERR, RDATA=0");
+        end else begin
+            fail_count = fail_count + 1;
+            $display("  FAIL: RRESP=%b RDATA=%h", s_axi_rresp, s_axi_rdata);
+        end
+
+        @(negedge clk);
+        s_axi_rready = 1'b1;
+        @(posedge clk);
+        @(negedge clk);
+        s_axi_rready = 1'b0;
 
         // Final summary
         $display("");
