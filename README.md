@@ -116,6 +116,7 @@ Useful signals to inspect:
 The waveform below shows the AHB-to-APB integrated system simulation, including AHB transfers, APB setup/access phases, memory readback, timer activity, and the unmapped-address response.
 
 ![AHB-to-APB System Waveform](docs/images/ahb_apb_system_waveform.png)
+![AHB-to-APB System Waveform](docs/images/ahb_apb_system_waveform.png)
 
 
 ## GitHub update
