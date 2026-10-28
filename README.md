@@ -206,3 +206,31 @@ Keep a waveform locally for debugging. If you publish a waveform screenshot, sav
 ## Project scope
 
 This project focuses on selected AXI4-Lite-to-APB and AHB-Lite-to-APB bridge paths and their peripheral subsystem. It is not a complete implementation of every AMBA protocol.
+
+
+## Verification Summary
+
+The project includes directed SystemVerilog testbenches for the selected AXI4-Lite/APB and AHB-Lite/APB bridge paths.
+
+| Verification area | Result |
+|---|---|
+| AXI4-Lite to APB4 bridge testbench | 13 checks passed, 0 failed |
+| AHB-Lite to APB integrated system | 12 checks passed, 0 errors |
+| APB memory read/write | Passed |
+| APB timer control and counter | Passed |
+| Unmapped-address error handling | Passed |
+| AXI response backpressure | Passed |
+| Partial-byte write verification | Passed |
+| APB wait-state stability | Passed |
+
+Run the configured regression suite from the project root:
+
+```bash
+bash run_all.sh
+```
+
+Expected final message:
+
+```text
+ALL CONFIGURED TESTS PASSED
+```
